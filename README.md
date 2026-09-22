@@ -1,12 +1,16 @@
 # Magick.Native.RegressionTest
 
-Tests `CompositeOperator.Multiply` on partly transparent pixels. Since ImageMagick 7.1.2-16 (Magick.NET 14.10.4),
+I've had an issue with fine lines on edges of composited graphics in Magic.NET versions past 14.10.3. The issue manifests
+when multiplying with partially transparent pixels. This repo has a test demonstrating the issue. 
+
+vvvvv fix this slop vvvvv
+The test is testing `CompositeOperator.Multiply` on partly transparent pixels. Since ImageMagick 7.1.2-16 (Magick.NET 14.10.4),
 `Multiply` returns the premultiplied colour (colour × alpha) instead of the colour. A later `Over` then darkens every
 anti-aliased edge.
 
 ## Results
 
-macOS arm64, `Magick.NET-Q8-arm64`, run 2026-09-22:
+macOS arm64, `Magick.NET-Q8-arm64`, run 2026-09-22: <--- specify tag
 
 | Magick.NET | ImageMagick | One-pixel Multiply, expected | Actual | Disc pixels differing | Exit |
 |---|---|---|---|---|---|
@@ -25,10 +29,13 @@ Top: the whole disc at 2×. Bottom: the boxed area at 8×; the arrow marks x=94 
 
 ## Checks
 
+vvvvv WTF is this one pixel check?
+
 - One pixel: white at alpha 132 multiplied by grey 252 at alpha 132.
 - Disc: `CopyAlpha` gives an opaque white image the alpha of a grey paper disc. `Multiply` then applies the paper.
   `Over` puts the result on opaque white. Each edge pixel's alpha is the fraction of it inside the disc.
 
+vvvvvv link? 
 The program computes the expected values from the W3C Compositing and Blending Level 1 formulas: multiply with
 source-over alpha, then source-over. PASS means an exact match. For the one pixel, alpha is Sa + Da − Sa·Da = 196 and
 colour is (Sca·Dca + Sca·(1 − Da) + Dca·(1 − Sa)) / alpha = 253. 7.1.2-31 returns the numerator, 194.
@@ -37,6 +44,7 @@ The program exits 1 if any check fails. It writes `disc-expected.png` and `disc-
 
 ## Cause
 
+vvvv fix slop
 ImageMagick commit [49e5a11](https://github.com/ImageMagick/ImageMagick/commit/49e5a11140d4b837475d4d21ce993d33f3558f12)
 (issue [#8579](https://github.com/ImageMagick/ImageMagick/issues/8579)), first released in 7.1.2-16, removed the
 division by the result alpha (`gamma`) from `Multiply` in `MagickCore/composite.c`:
@@ -55,6 +63,7 @@ The same commit made `CopyAlpha` read the source's intensity instead of its alph
 
 ## Run
 
+vvvv DOES IT? vvvv
 Needs the .NET 9 SDK.
 
 ```
@@ -70,6 +79,7 @@ Replace the package's native library with your own build, then run the built pro
 
 ```
 dotnet build -p:MagickNetVersion=14.17.1 -o build
+vvvvv this is only needed if the Magick.Native lib was downloaded vvvvvv
 xattr -c <folder>/Magick.Native-Q8-arm64.dll.dylib
 cp <folder>/Magick.Native-Q8-arm64.dll.dylib build/runtimes/osx-arm64/native/
 dotnet build/Magick.Native.RegressionTest.dll out/native
