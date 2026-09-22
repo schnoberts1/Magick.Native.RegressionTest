@@ -9,14 +9,15 @@ along the edge.
 
 ## Results
 
-macOS arm64, `Magick.NET-Q8-arm64` packages. Magick.NET 14.17.1 uses Magick.Native tag `2026.904.721`. In the fork
+macOS arm64, `Magick.NET-Q8-arm64`. Magick.NET 14.17.1 uses Magick.Native tag `2026.904.721`. In the fork
 [schnoberts1/Magick.Native](https://github.com/schnoberts1/Magick.Native), the branch
 [multiply-gamma](https://github.com/schnoberts1/Magick.Native/tree/multiply-gamma) branches off that tag.
 
-The expected result is the output of Magick.NET 14.10.3, stored in `expected/disc.png`. Every release from 14.10.4 to
-14.17.1 fails the check. Releases within each group below produce identical images.
+`expected/disc.png` is the output of 14.10.3. It matches the
+[W3C compositing formula](https://www.w3.org/TR/compositing-1/#generalformula) at every pixel. Releases within each
+group produce identical images.
 
-| Magick.NET | ImageMagick | Regression check |
+| Magick.NET | ImageMagick | Result |
 |---|---|---|
 | 14.10.3 | 7.1.2-15 | PASS |
 | 14.10.4 to 14.11.1 | 7.1.2-16 to 7.1.2-18 | FAIL |
@@ -27,30 +28,7 @@ The expected result is the output of Magick.NET 14.10.3, stored in `expected/dis
 | ![14.10.3 disc at 2x](images/disc-14.10.3.png) | ![14.17.1 disc at 2x with a grey edge](images/disc-14.17.1.png) |
 | ![14.10.3 edge at 8x](images/edge-14.10.3.png) | ![14.17.1 edge at 8x with a grey line](images/edge-14.17.1.png) |
 
-Top: the whole disc at 2×. Bottom: the boxed area at 8×. The arrow marks x=94 y=19: 251 on 14.10.3, 189 on 14.17.1.
-
-## Test
-
-- Given a white 200x200 image
-- And a test input: a 200x200 RGBA image where alpha changes at the edges like an antialiased image
-- When the image takes the test input's alpha (`CopyAlpha`)
-- And the image is multiplied by the test input (`Multiply`)
-- And the image is composited over white (`Over`)
-- Then the result matches the output of Magick.NET 14.10.3
-
-The regression check compares the result with `expected/disc.png` using `image.Compare(expected, ErrorMetric.Absolute)`.
-It alone sets the exit code: 0 when the error is 0, 1 otherwise. The error's scale differs between releases: 14.12.0 and
-14.17.1 produce identical images but report different errors. Only zero versus non-zero is comparable.
-`expected/disc.png` is `disc-actual.png` from `dotnet run -p:MagickNetVersion=14.10.3 -- out/14.10.3`.
-
-The program also compares the result with the
-[W3C Compositing and Blending Level 1](https://www.w3.org/TR/compositing-1/)
-[general formula](https://www.w3.org/TR/compositing-1/#generalformula), using the
-[multiply](https://www.w3.org/TR/compositing-1/#blendingmultiply) blend and
-[source-over](https://www.w3.org/TR/compositing-1/#porterduffcompositingoperators_srcover). It prints that comparison
-as information only. The output of 14.10.3 matches the formula at every pixel.
-
-Each run writes `disc-actual.png` and `w3c-disc-expected.png` to the output folder.
+Top: the disc at 2×. Bottom: the boxed area at 8×. The arrow marks x=94 y=19: 251 on 14.10.3, 189 on 14.17.1.
 
 ## Cause
 
@@ -64,36 +42,22 @@ from the `Multiply` colour in `MagickCore/composite.c`:
 +            pixel=(double) QuantumRange*(Sca*Dca+Sca*(1.0-Da)+Dca*(1.0-Sa));
 ```
 
-The bracketed term is colour × alpha. `gamma` is the reciprocal of the result alpha
-([line 2415](https://github.com/ImageMagick/ImageMagick/blob/7.1.2-31/MagickCore/composite.c#L2415) and
-[line 2734](https://github.com/ImageMagick/ImageMagick/blob/7.1.2-31/MagickCore/composite.c#L2734) at 7.1.2-31):
-
-```c
-alpha=RoundToUnity(Sa+Da-Sa*Da);
-gamma=MagickSafeReciprocal(alpha);
-```
-
-Without `gamma` the colour is never divided by alpha. The `Multiply` line is unchanged in 7.1.2-31 and on `main` as of
-2026-09-22.
+`gamma` is 1 ÷ the result alpha
+([2415](https://github.com/ImageMagick/ImageMagick/blob/7.1.2-31/MagickCore/composite.c#L2415),
+[2734](https://github.com/ImageMagick/ImageMagick/blob/7.1.2-31/MagickCore/composite.c#L2734)), so the colour is no
+longer divided by alpha. The line is unchanged on `main` as of 2026-09-22.
 
 The same commit made `CopyAlpha` read the source's intensity instead of its alpha.
 [43e4dbf](https://github.com/ImageMagick/ImageMagick/commit/43e4dbfc7a80dac4adeeae4999a757746ec25ab2) restored it in
-7.1.2-19 (Magick.NET 14.12.0). That is why 14.10.4 to 14.11.1 render the whole disc image grey 244.
+7.1.2-19 (Magick.NET 14.12.0). 14.10.4 to 14.11.1 therefore render the whole image grey.
 
 ## Run
-
-The project targets net9.0. The results above came from .NET SDK 9.0.315 and runtime 9.0.17.
 
 ```
 dotnet run -p:MagickNetVersion=14.17.1 -- out/14.17.1
 ```
 
-`MagickNetVersion` defaults to 14.17.1. `MagickNetPackage` defaults to `Magick.NET-Q8-arm64`;
-`-p:MagickNetPackage=Magick.NET-Q8-x64` selects the x64 package. Only arm64 has been run.
-
 ## Test a native library build
-
-Replace the package's native library with your own build, then run the built program:
 
 ```
 dotnet build -p:MagickNetVersion=14.17.1 -o build
@@ -101,7 +65,4 @@ cp <folder>/Magick.Native-Q8-arm64.dll.dylib build/runtimes/osx-arm64/native/
 dotnet build/Magick.Native.RegressionTest.dll out/native
 ```
 
-Build the library from the Magick.Native release that the Magick.NET version uses; Magick.NET names it in
-`src/Magick.Native/Magick.Native.version`. 14.17.1 uses `2026.904.721`. The
-[multiply-gamma](https://github.com/schnoberts1/Magick.Native/tree/multiply-gamma) branch builds that tag for macOS Q8
-arm64. Its unmodified build was byte-identical to the NuGet package's library.
+An unmodified build of multiply-gamma is byte-identical to the NuGet package's library.
