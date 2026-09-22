@@ -31,8 +31,7 @@ Top: the whole disc at 2×. Bottom: the boxed area at 8×. The arrow marks x=94 
 
 ## Test
 
-The test input is a 200x200 RGBA image where alpha changes at the edges like an antialiased image. Our product
-thumbnails use the same `CopyAlpha`, `Multiply` and `Over` steps:
+The test input is a 200x200 RGBA image where alpha changes at the edges like an antialiased image. We use these steps:
 
 - Given a white 200x200 image and the test input
 - When the image takes the test input's alpha (`CopyAlpha`)
