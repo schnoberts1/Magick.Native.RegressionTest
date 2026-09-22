@@ -7,15 +7,20 @@ Since ImageMagick 7.1.2-16 (Magick.NET 14.10.4), `CompositeOperator.Multiply` le
 dark: their stored colour is multiplied by their alpha. Composited `Over` a background, those pixels show as a dark line
 along the edge.
 
+I forked Magic.Native and created a branch multiply-gamma off 14.17.1 in which I added a regression test example which 
+I added to a new git workflow. This test fails for the above reasons. 
+
+I branched off fix-multiply-gamma off multiply-gamma and the test passes. I do not know if this is the _right_ fix, but it
+fixes the output for my scenario. 
+
+I have only tested macOS arm64. 
+
 ## Results
 
-macOS arm64, `Magick.NET-Q8-arm64`. Magick.NET 14.17.1 uses Magick.Native tag `2026.904.721`. In the fork
-[schnoberts1/Magick.Native](https://github.com/schnoberts1/Magick.Native), the branch
-[multiply-gamma](https://github.com/schnoberts1/Magick.Native/tree/multiply-gamma) branches off that tag.
-
 `expected/disc.png` is the output of 14.10.3. It matches the
-[W3C compositing formula](https://www.w3.org/TR/compositing-1/#generalformula) at every pixel. Releases within each
-group produce identical images.
+[W3C compositing formula](https://www.w3.org/TR/compositing-1/#generalformula) at every pixel.
+
+I did work through the versions to see if a fix and come and gone but this is not the case.
 
 | Magick.NET | ImageMagick | Result |
 |---|---|---|
