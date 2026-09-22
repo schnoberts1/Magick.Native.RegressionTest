@@ -53,16 +53,5 @@ The same commit made `CopyAlpha` read the source's intensity instead of its alph
 
 ## Run
 
-```
-dotnet run -p:MagickNetVersion=14.17.1 -- out/14.17.1
-```
-
-## Test a native library build
-
-```
-dotnet build -p:MagickNetVersion=14.17.1 -o build
-cp <folder>/Magick.Native-Q8-arm64.dll.dylib build/runtimes/osx-arm64/native/
-dotnet build/Magick.Native.RegressionTest.dll out/native
-```
-
-An unmodified build of multiply-gamma is byte-identical to the NuGet package's library.
+See the [workflow](https://github.com/schnoberts1/Magick.Native/blob/multiply-gamma/.github/workflows/macos-q8-arm64.yml).
+Its build without the patch was byte-identical to the NuGet package's library.
