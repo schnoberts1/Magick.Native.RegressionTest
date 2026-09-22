@@ -18,7 +18,7 @@ using var image = new MagickImage(MagickColors.White, Size, Size);
 // And the test input
 using var testInput = CreateTestInput();
 
-// When the image as the alpha from the test input copied into it
+// When the image has the alpha from the test input copied into it
 image.Composite(testInput, CompositeOperator.CopyAlpha);
 // And the image is multiplied by the test input
 image.Composite(testInput, CompositeOperator.Multiply);
@@ -30,7 +30,7 @@ actual.Write(Path.Combine(outDir, "disc-actual.png"));
 // Then the result matches the output of Magick.NET 14.10.3
 var pass = MatchesExpected(actual);
 
-// And the results match the W3C standaed formulae (shortcut of above fails)
+// And the results match the W3C standard formulae (skipped if the above fails)
 pass = pass && CompareWithW3c(actual, testInput, outDir);
 
 return pass ? 0 : 1;
@@ -83,7 +83,7 @@ static bool CompareWithW3c(MagickImage actual, MagickImage testInput, string out
     w3c.ReadPixels(pixels, new PixelReadSettings(Size, Size, StorageType.Char, PixelMapping.RGB));
     w3c.Write(Path.Combine(outDir, "w3c-disc-expected.png"));
     var error = actual.Compare(w3c, ErrorMetric.Absolute);
-    Console.WriteLine($"W3C formulas (information only): absolute error {error}");
+    Console.WriteLine($"W3C formulas: absolute error {error} {(error == 0 ? "PASS" : "FAIL")}");
     return error == 0;
 }
 
