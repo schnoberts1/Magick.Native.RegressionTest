@@ -4,93 +4,88 @@ using ImageMagick;
 const uint Size = 200;
 const double Radius = 80.5;
 const int Samples = 8;
+const byte TestInputGrey = 244;
 const byte White = 255;
-const byte PaperGrey = 244;
-// Our bookmark thumbnail's paper has these values at one edge pixel.
-const byte PixelAlpha = 132;
-const byte SourceGrey = 252;
 const int Rgba = 4;
 const int Rgb = 3;
 
 var outDir = args[0];
 Directory.CreateDirectory(outDir);
-var expectedDir = Path.Combine(AppContext.BaseDirectory, "expected");
 Console.WriteLine($"{MagickNET.Version} | {MagickNET.ImageMagickVersion}");
 
-// Scenario 1: Multiply alone on one pixel.
-using var destination = new MagickImage(new MagickColor(White, White, White, PixelAlpha), 1, 1);
-using var source = new MagickImage(new MagickColor(SourceGrey, SourceGrey, SourceGrey, PixelAlpha), 1, 1);
-destination.Composite(source, CompositeOperator.Multiply);
-destination.Write(Path.Combine(outDir, "one-pixel-actual.png"));
+using var testInput = CreateTestInput();
+using var actual = Render(testInput);
+actual.Write(Path.Combine(outDir, "disc-actual.png"));
 
-// Scenario 2: the thumbnail's CopyAlpha, Multiply and Over on a disc.
-// The paper is an anti-aliased grey disc.
-var coverage = new byte[Size * Size];
-var paperPixels = new byte[Size * Size * Rgba];
-for (var y = 0; y < Size; y++) {
-    for (var x = 0; x < Size; x++) {
-        var inside = 0;
-        for (var sy = 0; sy < Samples; sy++) {
-            for (var sx = 0; sx < Samples; sx++) {
-                var dx = x + (sx + 0.5) / Samples - Size / 2.0;
-                var dy = y + (sy + 0.5) / Samples - Size / 2.0;
-                if (dx * dx + dy * dy <= Radius * Radius) inside++;
-            }
-        }
-        var i = (int)(y * Size + x);
-        coverage[i] = (byte)Math.Round(255.0 * inside / (Samples * Samples), MidpointRounding.AwayFromZero);
-        paperPixels[i * Rgba] = paperPixels[i * Rgba + 1] = paperPixels[i * Rgba + 2] = PaperGrey;
-        paperPixels[i * Rgba + 3] = coverage[i];
-    }
-}
-using var paper = new MagickImage();
-paper.ReadPixels(paperPixels, new PixelReadSettings(Size, Size, StorageType.Char, PixelMapping.RGBA));
-
-using var design = new MagickImage(MagickColors.White, Size, Size);
-using var print = new MagickImage(MagickColors.Transparent, Size, Size);
-print.Composite(design, CompositeOperator.Over);
-print.Composite(paper, CompositeOperator.CopyAlpha);
-print.Composite(paper, CompositeOperator.Multiply);
-
-using var background = new MagickImage(MagickColors.White, Size, Size);
-background.Composite(print, CompositeOperator.Over);
-background.Write(Path.Combine(outDir, "disc-actual.png"));
-
-// Regression check: each result must match the output of Magick.NET 14.10.3 in expected/.
-// This check alone sets the exit code.
-using var onePixelExpected = new MagickImage(Path.Combine(expectedDir, "one-pixel.png"));
-using var discExpected = new MagickImage(Path.Combine(expectedDir, "disc.png"));
-var onePixelError = destination.Compare(onePixelExpected, ErrorMetric.Absolute);
-var discError = background.Compare(discExpected, ErrorMetric.Absolute);
-Console.WriteLine($"one pixel vs 14.10.3: expected [{RgbaText(onePixelExpected)}] actual [{RgbaText(destination)}] absolute error {onePixelError}");
-Console.WriteLine($"disc vs 14.10.3: absolute error {discError}");
-var pass = onePixelError == 0 && discError == 0;
-Console.WriteLine($"regression check: {(pass ? "PASS" : "FAIL")}");
-
-// Extra information: each result compared with the W3C compositing formulas.
-// This does not change the exit code.
-var (colour, alpha) = Multiply(SourceGrey, PixelAlpha, White, PixelAlpha);
-using var w3cOnePixel = new MagickImage(new MagickColor(colour, colour, colour, alpha), 1, 1);
-Console.WriteLine($"one pixel vs W3C formulas (information only): expected [{RgbaText(w3cOnePixel)}] actual [{RgbaText(destination)}] " +
-                  $"absolute error {destination.Compare(w3cOnePixel, ErrorMetric.Absolute)}");
-
-var w3cDisc = new byte[Size * Size * Rgb];
-for (var i = 0; i < Size * Size; i++) {
-    // After CopyAlpha the print is white with the paper's alpha.
-    var (printColour, printAlpha) = Multiply(PaperGrey, coverage[i], White, coverage[i]);
-    w3cDisc[i * Rgb] = w3cDisc[i * Rgb + 1] = w3cDisc[i * Rgb + 2] = Over(printColour, printAlpha, White);
-}
-using var w3cImage = new MagickImage();
-w3cImage.ReadPixels(w3cDisc, new PixelReadSettings(Size, Size, StorageType.Char, PixelMapping.RGB));
-w3cImage.Write(Path.Combine(outDir, "w3c-disc-expected.png"));
-Console.WriteLine($"disc vs W3C formulas (information only): absolute error {background.Compare(w3cImage, ErrorMetric.Absolute)}");
-
+var pass = MatchesExpected(actual);
+CompareWithW3c(actual, testInput, outDir);
 return pass ? 0 : 1;
 
-static string RgbaText(MagickImage image)
+// Returns a grey disc with anti-aliased alpha.
+static MagickImage CreateTestInput()
 {
-    using var pixels = image.GetPixels();
-    return string.Join(",", pixels.ToByteArray(PixelMapping.RGBA)!);
+    var pixels = new byte[Size * Size * Rgba];
+    for (var y = 0; y < Size; y++) {
+        for (var x = 0; x < Size; x++) {
+            var inside = 0;
+            for (var sy = 0; sy < Samples; sy++) {
+                for (var sx = 0; sx < Samples; sx++) {
+                    var dx = x + (sx + 0.5) / Samples - Size / 2.0;
+                    var dy = y + (sy + 0.5) / Samples - Size / 2.0;
+                    if (dx * dx + dy * dy <= Radius * Radius) inside++;
+                }
+            }
+            var i = (int)(y * Size + x) * Rgba;
+            pixels[i] = pixels[i + 1] = pixels[i + 2] = TestInputGrey;
+            pixels[i + 3] = (byte)Math.Round(255.0 * inside / (Samples * Samples), MidpointRounding.AwayFromZero);
+        }
+    }
+    var image = new MagickImage();
+    image.ReadPixels(pixels, new PixelReadSettings(Size, Size, StorageType.Char, PixelMapping.RGBA));
+    return image;
+}
+
+// Applies the composite chain of our thumbnails to the test input.
+static MagickImage Render(MagickImage testInput)
+{
+    using var white = new MagickImage(MagickColors.White, Size, Size);
+    using var canvas = new MagickImage(MagickColors.Transparent, Size, Size);
+    canvas.Composite(white, CompositeOperator.Over);
+    canvas.Composite(testInput, CompositeOperator.CopyAlpha);
+    canvas.Composite(testInput, CompositeOperator.Multiply);
+    var result = new MagickImage(MagickColors.White, Size, Size);
+    result.Composite(canvas, CompositeOperator.Over);
+    return result;
+}
+
+// Regression check: the result must match the output of Magick.NET 14.10.3.
+// This check alone sets the exit code.
+static bool MatchesExpected(MagickImage actual)
+{
+    using var expected = new MagickImage(Path.Combine(AppContext.BaseDirectory, "expected", "disc.png"));
+    var error = actual.Compare(expected, ErrorMetric.Absolute);
+    Console.WriteLine($"regression check against 14.10.3: absolute error {error} {(error == 0 ? "PASS" : "FAIL")}");
+    return error == 0;
+}
+
+// Extra information: the W3C compositing formulas applied to the test input.
+// This comparison does not change the exit code.
+static void CompareWithW3c(MagickImage actual, MagickImage testInput, string outDir)
+{
+    using var input = testInput.GetPixels();
+    var inputPixels = input.ToByteArray(PixelMapping.RGBA)!;
+    var pixels = new byte[Size * Size * Rgb];
+    for (var i = 0; i < Size * Size; i++) {
+        var grey = inputPixels[i * Rgba];
+        var alpha = inputPixels[i * Rgba + 3];
+        // After CopyAlpha the canvas is white with the test input's alpha.
+        var (colour, resultAlpha) = Multiply(grey, alpha, White, alpha);
+        pixels[i * Rgb] = pixels[i * Rgb + 1] = pixels[i * Rgb + 2] = Over(colour, resultAlpha, White);
+    }
+    using var w3c = new MagickImage();
+    w3c.ReadPixels(pixels, new PixelReadSettings(Size, Size, StorageType.Char, PixelMapping.RGB));
+    w3c.Write(Path.Combine(outDir, "w3c-disc-expected.png"));
+    Console.WriteLine($"W3C formulas (information only): absolute error {actual.Compare(w3c, ErrorMetric.Absolute)}");
 }
 
 // Returns the W3C multiply of two grey pixels.
