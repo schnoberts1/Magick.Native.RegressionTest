@@ -37,7 +37,7 @@ I did work through the versions to see if a fix had come and gone but this is no
 | ![14.10.3 disc at 2x](images/disc-14.10.3.png) | ![14.17.1 disc at 2x with a grey edge](images/disc-14.17.1.png) |
 | ![14.10.3 edge at 8x](images/edge-14.10.3.png) | ![14.17.1 edge at 8x with a grey line](images/edge-14.17.1.png) |
 
-Top: the disc at 2×. Bottom: the boxed area at 8×. The arrow marks x=94 y=19: 251 on 14.10.3, 189 on 14.17.1.
+Top: the disc at 2×. Bottom: the boxed area at 8×.
 
 ## Cause
 
