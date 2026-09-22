@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net9.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <MagickNetPackage Condition="'$(MagickNetPackage)' == ''">Magick.NET-Q8-arm64</MagickNetPackage>
+        <MagickNetVersion Condition="'$(MagickNetVersion)' == ''">14.17.1</MagickNetVersion>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="$(MagickNetPackage)" Version="$(MagickNetVersion)" />
+    </ItemGroup>
+</Project>
