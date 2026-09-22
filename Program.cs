@@ -13,15 +13,30 @@ var outDir = args[0];
 Directory.CreateDirectory(outDir);
 Console.WriteLine($"{MagickNET.Version} | {MagickNET.ImageMagickVersion}");
 
+// Given a white 200x200 image
+using var image = new MagickImage(MagickColors.White, Size, Size);
+// And the test input
 using var testInput = CreateTestInput();
-using var actual = Render(testInput);
+
+// When the image takes the test input's alpha
+image.Composite(testInput, CompositeOperator.CopyAlpha);
+// And the image is multiplied by the test input
+image.Composite(testInput, CompositeOperator.Multiply);
+// And the image is composited over white
+using var actual = new MagickImage(MagickColors.White, Size, Size);
+actual.Composite(image, CompositeOperator.Over);
 actual.Write(Path.Combine(outDir, "disc-actual.png"));
 
+// Then the result matches the output of Magick.NET 14.10.3
 var pass = MatchesExpected(actual);
+
+// Extra information: the W3C compositing formulas applied to the test input.
+// This comparison does not change the exit code.
 CompareWithW3c(actual, testInput, outDir);
+
 return pass ? 0 : 1;
 
-// Returns a grey disc with anti-aliased alpha.
+// Generate a 200x200 RGBA image where alpha changes at the edges like an antialiased image.
 static MagickImage CreateTestInput()
 {
     var pixels = new byte[Size * Size * Rgba];
@@ -40,26 +55,11 @@ static MagickImage CreateTestInput()
             pixels[i + 3] = (byte)Math.Round(255.0 * inside / (Samples * Samples), MidpointRounding.AwayFromZero);
         }
     }
-    var image = new MagickImage();
-    image.ReadPixels(pixels, new PixelReadSettings(Size, Size, StorageType.Char, PixelMapping.RGBA));
-    return image;
+    var testInput = new MagickImage();
+    testInput.ReadPixels(pixels, new PixelReadSettings(Size, Size, StorageType.Char, PixelMapping.RGBA));
+    return testInput;
 }
 
-// Applies the composite chain of our thumbnails to the test input.
-static MagickImage Render(MagickImage testInput)
-{
-    using var white = new MagickImage(MagickColors.White, Size, Size);
-    using var canvas = new MagickImage(MagickColors.Transparent, Size, Size);
-    canvas.Composite(white, CompositeOperator.Over);
-    canvas.Composite(testInput, CompositeOperator.CopyAlpha);
-    canvas.Composite(testInput, CompositeOperator.Multiply);
-    var result = new MagickImage(MagickColors.White, Size, Size);
-    result.Composite(canvas, CompositeOperator.Over);
-    return result;
-}
-
-// Regression check: the result must match the output of Magick.NET 14.10.3.
-// This check alone sets the exit code.
 static bool MatchesExpected(MagickImage actual)
 {
     using var expected = new MagickImage(Path.Combine(AppContext.BaseDirectory, "expected", "disc.png"));
@@ -68,8 +68,6 @@ static bool MatchesExpected(MagickImage actual)
     return error == 0;
 }
 
-// Extra information: the W3C compositing formulas applied to the test input.
-// This comparison does not change the exit code.
 static void CompareWithW3c(MagickImage actual, MagickImage testInput, string outDir)
 {
     using var input = testInput.GetPixels();
@@ -78,7 +76,7 @@ static void CompareWithW3c(MagickImage actual, MagickImage testInput, string out
     for (var i = 0; i < Size * Size; i++) {
         var grey = inputPixels[i * Rgba];
         var alpha = inputPixels[i * Rgba + 3];
-        // After CopyAlpha the canvas is white with the test input's alpha.
+        // After CopyAlpha the image is white with the test input's alpha.
         var (colour, resultAlpha) = Multiply(grey, alpha, White, alpha);
         pixels[i * Rgb] = pixels[i * Rgb + 1] = pixels[i * Rgb + 2] = Over(colour, resultAlpha, White);
     }

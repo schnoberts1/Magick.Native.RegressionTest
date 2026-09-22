@@ -31,9 +31,14 @@ Top: the whole disc at 2×. Bottom: the boxed area at 8×. The arrow marks x=94 
 
 ## Test
 
-The test input is a grey disc with anti-aliased alpha. The program applies the composite chain of our thumbnails to it.
-`CopyAlpha` gives an opaque white image the test input's alpha. `Multiply` then applies the test input. `Over` puts the
-result on opaque white.
+The test input is a 200x200 RGBA image where alpha changes at the edges like an antialiased image. Our product
+thumbnails use the same `CopyAlpha`, `Multiply` and `Over` steps:
+
+- Given a white 200x200 image and the test input
+- When the image takes the test input's alpha (`CopyAlpha`)
+- And the image is multiplied by the test input (`Multiply`)
+- And the image is composited over white (`Over`)
+- Then the result matches the output of Magick.NET 14.10.3
 
 The regression check compares the result with `expected/disc.png` using `image.Compare(expected, ErrorMetric.Absolute)`.
 It alone sets the exit code: 0 when the error is 0, 1 otherwise. The error's scale differs between releases: 14.12.0 and
