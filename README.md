@@ -4,7 +4,7 @@ I've had an issue with fine lines on edges of composited graphics in Magick.NET 
 when multiplying with partially transparent pixels. This repo has a test demonstrating the issue.
 
 Since ImageMagick 7.1.2-16 (Magick.NET 14.10.4), `CompositeOperator.Multiply` leaves partly transparent results too
-dark: their stored colour is multiplied by their alpha. Composited `Over` a background, those pixels show as a dark line
+dark. Composited `Over` a background, those pixels show as a dark line
 along the edge.
 
 I forked [Magick.Native](https://github.com/schnoberts1/Magick.Native) and created the branch
