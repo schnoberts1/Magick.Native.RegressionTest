@@ -9,8 +9,9 @@ the edge.
 
 ## Results
 
-macOS arm64, `Magick.NET-Q8-arm64` packages, this repo at tag
-[`v1`](https://github.com/schnoberts1/Magick.Native.RegressionTest/tree/v1):
+macOS arm64, `Magick.NET-Q8-arm64` packages. Magick.NET 14.17.1 uses Magick.Native tag `2026.904.721`. In the fork
+[schnoberts1/Magick.Native](https://github.com/schnoberts1/Magick.Native), the branch
+[multiply-gamma](https://github.com/schnoberts1/Magick.Native/tree/multiply-gamma) branches off that tag.
 
 | Magick.NET | ImageMagick | One-pixel Multiply, expected | Actual | Disc pixels differing | Exit |
 |---|---|---|---|---|---|
