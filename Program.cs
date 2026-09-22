@@ -1,12 +1,12 @@
 using ImageMagick;
 
-// Reproduces a CopyAlpha, Multiply and Over composite with Magick.NET alone.
-// The W3C Compositing and Blending formulas give the expected values.
+// Compares Magick.NET's Multiply with the W3C compositing formulas.
 const uint Size = 200;
 const double Radius = 80.5;
 const int Samples = 8;
 const byte White = 255;
 const byte PaperGrey = 244;
+// The first image with lines had these values at one edge pixel.
 const byte PixelAlpha = 132;
 const byte SourceGrey = 252;
 
@@ -17,7 +17,6 @@ Console.WriteLine($"{MagickNET.Version} | {imVersion}");
 
 var failed = false;
 
-// Multiplies white at alpha 132 by grey 252 at alpha 132.
 using (var dst = new MagickImage(new MagickColor(White, White, White, PixelAlpha), 1, 1))
 using (var src = new MagickImage(new MagickColor(SourceGrey, SourceGrey, SourceGrey, PixelAlpha), 1, 1)) {
     dst.Composite(src, CompositeOperator.Multiply);
@@ -30,7 +29,7 @@ using (var src = new MagickImage(new MagickColor(SourceGrey, SourceGrey, SourceG
     Console.WriteLine($"one pixel multiply: expected [{string.Join(",", expected)}] actual [{string.Join(",", actual)}] {(pass ? "PASS" : "FAIL")}");
 }
 
-// Each paper pixel's alpha is the fraction of it inside the disc.
+// The paper is an anti-aliased grey disc.
 var paperPixels = new byte[Size * Size * 4];
 var expectedPixels = new byte[Size * Size * 3];
 for (var y = 0; y < Size; y++) {
@@ -48,7 +47,7 @@ for (var y = 0; y < Size; y++) {
         paperPixels[i * 4] = paperPixels[i * 4 + 1] = paperPixels[i * 4 + 2] = PaperGrey;
         paperPixels[i * 4 + 3] = coverage;
 
-        // Applies CopyAlpha, Multiply and Over white to get the expected pixel.
+        // After CopyAlpha the print is white with the paper's alpha.
         var (printColour, printAlpha) = Multiply(PaperGrey, coverage, White, coverage);
         var final = Over(printColour, printAlpha, White);
         expectedPixels[i * 3] = expectedPixels[i * 3 + 1] = expectedPixels[i * 3 + 2] = final;
@@ -98,7 +97,7 @@ using (var pixels = background.GetPixels()) {
 
 return failed ? 1 : 0;
 
-// Returns the W3C multiply of non-premultiplied colours, with source-over alpha.
+// Returns the W3C multiply of two grey pixels.
 static (byte Colour, byte Alpha) Multiply(byte sc, byte sa, byte dc, byte da)
 {
     double s = sc / 255.0, sAlpha = sa / 255.0, d = dc / 255.0, dAlpha = da / 255.0;
@@ -109,7 +108,7 @@ static (byte Colour, byte Alpha) Multiply(byte sc, byte sa, byte dc, byte da)
     return (ToByte(alpha > 0 ? premultiplied / alpha : 0), ToByte(alpha));
 }
 
-// Returns the W3C source-over onto an opaque destination.
+// Returns the W3C source-over onto an opaque grey pixel.
 static byte Over(byte sc, byte sa, byte dc) =>
     ToByte(sc / 255.0 * (sa / 255.0) + dc / 255.0 * (1 - sa / 255.0));
 

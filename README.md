@@ -1,16 +1,16 @@
 # Magick.Native.RegressionTest
 
-I've had an issue with fine lines on edges of composited graphics in Magic.NET versions past 14.10.3. The issue manifests
-when multiplying with partially transparent pixels. This repo has a test demonstrating the issue. 
+I've had an issue with fine lines on edges of composited graphics in Magick.NET versions past 14.10.3. The issue manifests
+when multiplying with partially transparent pixels. This repo has a test demonstrating the issue.
 
-vvvvv fix this slop vvvvv
-The test is testing `CompositeOperator.Multiply` on partly transparent pixels. Since ImageMagick 7.1.2-16 (Magick.NET 14.10.4),
-`Multiply` returns the premultiplied colour (colour × alpha) instead of the colour. A later `Over` then darkens every
-anti-aliased edge.
+Since ImageMagick 7.1.2-16 (Magick.NET 14.10.4), `CompositeOperator.Multiply` leaves partly transparent pixels too
+dark: their stored colour is multiplied by their alpha. Composited `Over` a background, they show as a dark line along
+the edge.
 
 ## Results
 
-macOS arm64, `Magick.NET-Q8-arm64`, run 2026-09-22: <--- specify tag
+macOS arm64, `Magick.NET-Q8-arm64` packages, this repo at tag
+[`v1`](https://github.com/schnoberts1/Magick.Native.RegressionTest/tree/v1):
 
 | Magick.NET | ImageMagick | One-pixel Multiply, expected | Actual | Disc pixels differing | Exit |
 |---|---|---|---|---|---|
@@ -29,25 +29,29 @@ Top: the whole disc at 2×. Bottom: the boxed area at 8×; the arrow marks x=94 
 
 ## Checks
 
-vvvvv WTF is this one pixel check?
+The program runs two checks and exits 1 if either fails. PASS means an exact match.
 
-- One pixel: white at alpha 132 multiplied by grey 252 at alpha 132.
-- Disc: `CopyAlpha` gives an opaque white image the alpha of a grey paper disc. `Multiply` then applies the paper.
-  `Over` puts the result on opaque white. Each edge pixel's alpha is the fraction of it inside the disc.
+- One pixel: `Multiply` alone on two 1×1 images. The destination is white at alpha 132; the source is grey 252 at
+  alpha 132. The first image with lines had these values at one edge pixel. The check isolates `Multiply` from
+  `CopyAlpha` and `Over`.
+- Disc: `CopyAlpha` gives an opaque white image the alpha of an anti-aliased grey disc. `Multiply` then applies the
+  disc. `Over` puts the result on opaque white.
 
-vvvvvv link? 
-The program computes the expected values from the W3C Compositing and Blending Level 1 formulas: multiply with
-source-over alpha, then source-over. PASS means an exact match. For the one pixel, alpha is Sa + Da − Sa·Da = 196 and
-colour is (Sca·Dca + Sca·(1 − Da) + Dca·(1 − Sa)) / alpha = 253. 7.1.2-31 returns the numerator, 194.
+The program computes the expected values from
+[W3C Compositing and Blending Level 1](https://www.w3.org/TR/compositing-1/):
+[blending](https://www.w3.org/TR/compositing-1/#blending) with
+[multiply](https://www.w3.org/TR/compositing-1/#blendingmultiply), then
+[source-over](https://www.w3.org/TR/compositing-1/#porterduffcompositingoperators_srcover). For the one pixel, alpha is
+Sa + Da − Sa·Da = 196 and colour is (Sca·Dca + Sca·(1 − Da) + Dca·(1 − Sa)) / alpha = 253. 7.1.2-31 returns the
+numerator, 194.
 
-The program exits 1 if any check fails. It writes `disc-expected.png` and `disc-actual.png` to the output folder.
+The disc check writes `disc-expected.png` and `disc-actual.png` to the output folder.
 
 ## Cause
 
-vvvv fix slop
 ImageMagick commit [49e5a11](https://github.com/ImageMagick/ImageMagick/commit/49e5a11140d4b837475d4d21ce993d33f3558f12)
-(issue [#8579](https://github.com/ImageMagick/ImageMagick/issues/8579)), first released in 7.1.2-16, removed the
-division by the result alpha (`gamma`) from `Multiply` in `MagickCore/composite.c`:
+(issue [#8579](https://github.com/ImageMagick/ImageMagick/issues/8579)), first released in 7.1.2-16, removed `gamma`
+from the `Multiply` colour in `MagickCore/composite.c`:
 
 ```diff
 -            pixel=(double) QuantumRange*gamma*(Sca*Dca+Sca*(1.0-Da)+Dca*
@@ -55,7 +59,17 @@ division by the result alpha (`gamma`) from `Multiply` in `MagickCore/composite.
 +            pixel=(double) QuantumRange*(Sca*Dca+Sca*(1.0-Da)+Dca*(1.0-Sa));
 ```
 
-The line is unchanged in 7.1.2-31 and on `main` as of 2026-09-22.
+The bracketed term is colour × alpha. `gamma` is the reciprocal of the result alpha
+([line 2415](https://github.com/ImageMagick/ImageMagick/blob/7.1.2-31/MagickCore/composite.c#L2415) and
+[line 2734](https://github.com/ImageMagick/ImageMagick/blob/7.1.2-31/MagickCore/composite.c#L2734) at 7.1.2-31):
+
+```c
+alpha=RoundToUnity(Sa+Da-Sa*Da);
+gamma=MagickSafeReciprocal(alpha);
+```
+
+Without `gamma` the colour is never divided by alpha. The `Multiply` line is unchanged in 7.1.2-31 and on `main` as of
+2026-09-22.
 
 The same commit made `CopyAlpha` read the source's intensity instead of its alpha.
 [43e4dbf](https://github.com/ImageMagick/ImageMagick/commit/43e4dbfc7a80dac4adeeae4999a757746ec25ab2) restored it in
@@ -63,8 +77,7 @@ The same commit made `CopyAlpha` read the source's intensity instead of its alph
 
 ## Run
 
-vvvv DOES IT? vvvv
-Needs the .NET 9 SDK.
+The project targets net9.0. The results above came from .NET SDK 9.0.315 and runtime 9.0.17.
 
 ```
 dotnet run -p:MagickNetVersion=14.17.1 -- out/14.17.1
@@ -79,13 +92,9 @@ Replace the package's native library with your own build, then run the built pro
 
 ```
 dotnet build -p:MagickNetVersion=14.17.1 -o build
-vvvvv this is only needed if the Magick.Native lib was downloaded vvvvvv
-xattr -c <folder>/Magick.Native-Q8-arm64.dll.dylib
 cp <folder>/Magick.Native-Q8-arm64.dll.dylib build/runtimes/osx-arm64/native/
 dotnet build/Magick.Native.RegressionTest.dll out/native
 ```
-
-`xattr -c` removes the quarantine flag that a browser download carries. macOS refuses to load a quarantined library.
 
 Build the library from the Magick.Native release that the Magick.NET version uses; Magick.NET names it in
 `src/Magick.Native/Magick.Native.version`. 14.17.1 uses `2026.904.721`. The
