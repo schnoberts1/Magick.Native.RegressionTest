@@ -16,6 +16,13 @@ macOS arm64, `Magick.NET-Q8-arm64`, run 2026-09-22:
 
 On 14.17.1 the worst disc pixel is x=94 y=19: expected 251, actual 189.
 
+| Expected (identical to 14.10.3) | 14.17.1 |
+|---|---|
+| ![Expected disc at 2x](images/disc-expected.png) | ![14.17.1 disc at 2x with a grey edge](images/disc-14.17.1.png) |
+| ![Expected edge at 8x](images/edge-expected.png) | ![14.17.1 edge at 8x with a grey line](images/edge-14.17.1.png) |
+
+Top: the whole disc at 2×. Bottom: the boxed area at 8×; the arrow marks x=94 y=19.
+
 ## Checks
 
 - One pixel: white at alpha 132 multiplied by grey 252 at alpha 132.
