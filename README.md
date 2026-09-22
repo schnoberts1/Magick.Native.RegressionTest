@@ -3,9 +3,9 @@
 I've had an issue with fine lines on edges of composited graphics in Magick.NET versions past 14.10.3. The issue manifests
 when multiplying with partially transparent pixels. This repo has a test demonstrating the issue.
 
-Since ImageMagick 7.1.2-16 (Magick.NET 14.10.4), `CompositeOperator.Multiply` leaves partly transparent pixels too
-dark: their stored colour is multiplied by their alpha. Composited `Over` a background, they show as a dark line along
-the edge.
+Since ImageMagick 7.1.2-16 (Magick.NET 14.10.4), `CompositeOperator.Multiply` leaves partly transparent results too
+dark: their stored colour is multiplied by their alpha. Composited `Over` a background, those pixels show as a dark line
+along the edge.
 
 ## Results
 
@@ -13,40 +13,48 @@ macOS arm64, `Magick.NET-Q8-arm64` packages. Magick.NET 14.17.1 uses Magick.Nati
 [schnoberts1/Magick.Native](https://github.com/schnoberts1/Magick.Native), the branch
 [multiply-gamma](https://github.com/schnoberts1/Magick.Native/tree/multiply-gamma) branches off that tag.
 
-| Magick.NET | ImageMagick | One-pixel Multiply, expected | Actual | Disc pixels differing | Exit |
-|---|---|---|---|---|---|
-| 14.10.3 | 7.1.2-15 | 253,253,253,196 | 253,253,253,196 | 0 of 40000 | 0 |
-| 14.11.1 | 7.1.2-18 | 253,253,253,196 | 194,194,194,196 | 19852 of 40000 | 1 |
-| 14.17.1 | 7.1.2-31 | 253,253,253,196 | 194,194,194,196 | 496 of 40000 | 1 |
+The expected results are the output of Magick.NET 14.10.3, stored in `expected/`. Every release from 14.10.4 to
+14.17.1 fails both scenarios. Releases within each group below produce identical images.
 
-On 14.17.1 the worst disc pixel is x=94 y=19: expected 251, actual 189.
+| Magick.NET | ImageMagick | One pixel | Regression check |
+|---|---|---|---|
+| 14.10.3 | 7.1.2-15 | 253,253,253,196 | PASS |
+| 14.10.4 to 14.11.1 | 7.1.2-16 to 7.1.2-18 | 194,194,194,196 | FAIL |
+| 14.12.0 to 14.17.1 | 7.1.2-19 to 7.1.2-31 | 194,194,194,196 | FAIL |
 
-| Expected (identical to 14.10.3) | 14.17.1 |
+| Magick.NET 14.10.3 | Magick.NET 14.17.1 |
 |---|---|
-| ![Expected disc at 2x](images/disc-expected.png) | ![14.17.1 disc at 2x with a grey edge](images/disc-14.17.1.png) |
-| ![Expected edge at 8x](images/edge-expected.png) | ![14.17.1 edge at 8x with a grey line](images/edge-14.17.1.png) |
+| ![14.10.3 disc at 2x](images/disc-14.10.3.png) | ![14.17.1 disc at 2x with a grey edge](images/disc-14.17.1.png) |
+| ![14.10.3 edge at 8x](images/edge-14.10.3.png) | ![14.17.1 edge at 8x with a grey line](images/edge-14.17.1.png) |
 
-Top: the whole disc at 2×. Bottom: the boxed area at 8×; the arrow marks x=94 y=19.
+Top: the whole disc at 2×. Bottom: the boxed area at 8×. The arrow marks x=94 y=19: 251 on 14.10.3, 189 on 14.17.1.
 
 ## Checks
 
-The program runs two checks and exits 1 if either fails. PASS means an exact match.
+The program runs two scenarios on the Magick.NET version under test:
 
 - One pixel: `Multiply` alone on two 1×1 images. The destination is white at alpha 132; the source is grey 252 at
-  alpha 132. The first image with lines had these values at one edge pixel. The check isolates `Multiply` from
-  `CopyAlpha` and `Over`.
+  alpha 132. Our bookmark thumbnail has these values at one edge pixel: the print after `CopyAlpha` and the paper. The
+  scenario isolates `Multiply` from `CopyAlpha` and `Over`.
 - Disc: `CopyAlpha` gives an opaque white image the alpha of an anti-aliased grey disc. `Multiply` then applies the
   disc. `Over` puts the result on opaque white.
 
-The program computes the expected values from
-[W3C Compositing and Blending Level 1](https://www.w3.org/TR/compositing-1/):
-[blending](https://www.w3.org/TR/compositing-1/#blending) with
-[multiply](https://www.w3.org/TR/compositing-1/#blendingmultiply), then
-[source-over](https://www.w3.org/TR/compositing-1/#porterduffcompositingoperators_srcover). For the one pixel, alpha is
-Sa + Da − Sa·Da = 196 and colour is (Sca·Dca + Sca·(1 − Da) + Dca·(1 − Sa)) / alpha = 253. 7.1.2-31 returns the
-numerator, 194.
+The regression check compares each result with `expected/` using `image.Compare(expected, ErrorMetric.Absolute)`. It
+alone sets the exit code: 0 when both errors are 0, 1 otherwise. The error's scale differs between releases: 14.12.0 and
+14.17.1 produce identical images but report different errors. Only zero versus non-zero is comparable.
+`expected/one-pixel.png` and `expected/disc.png` are `one-pixel-actual.png` and `disc-actual.png` from
+`dotnet run -p:MagickNetVersion=14.10.3 -- out/14.10.3`.
 
-The disc check writes `disc-expected.png` and `disc-actual.png` to the output folder.
+The program also compares each result with the
+[W3C Compositing and Blending Level 1](https://www.w3.org/TR/compositing-1/)
+[general formula](https://www.w3.org/TR/compositing-1/#generalformula), using the
+[multiply](https://www.w3.org/TR/compositing-1/#blendingmultiply) blend and
+[source-over](https://www.w3.org/TR/compositing-1/#porterduffcompositingoperators_srcover). It prints that comparison
+as information only. The output of 14.10.3 matches the formula at every pixel of both scenarios. For the one pixel,
+alpha is Sa + Da − Sa·Da = 196 and colour is (Sca·Dca + Sca·(1 − Da) + Dca·(1 − Sa)) / alpha = 253. 7.1.2-31 returns
+the numerator, 194.
+
+Each run writes `one-pixel-actual.png`, `disc-actual.png` and `w3c-disc-expected.png` to the output folder.
 
 ## Cause
 
@@ -74,7 +82,7 @@ Without `gamma` the colour is never divided by alpha. The `Multiply` line is unc
 
 The same commit made `CopyAlpha` read the source's intensity instead of its alpha.
 [43e4dbf](https://github.com/ImageMagick/ImageMagick/commit/43e4dbfc7a80dac4adeeae4999a757746ec25ab2) restored it in
-7.1.2-19 (Magick.NET 14.12.0). That is why 14.10.4 to 14.11.1 fail the disc check on about half the pixels.
+7.1.2-19 (Magick.NET 14.12.0). That is why 14.10.4 to 14.11.1 render the whole disc image grey 244.
 
 ## Run
 

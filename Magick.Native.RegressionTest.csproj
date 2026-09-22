@@ -10,4 +10,7 @@
     <ItemGroup>
         <PackageReference Include="$(MagickNetPackage)" Version="$(MagickNetVersion)" />
     </ItemGroup>
+    <ItemGroup>
+        <None Update="expected/**" CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>
